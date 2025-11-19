@@ -6,11 +6,11 @@
 
 ![p1](https://github.com/user-attachments/assets/735f7be6-d542-4c71-b6d7-747037b0af98)
 
-### Generate Hero
+### Generate NPC
 
 ![p2](https://github.com/user-attachments/assets/6bc6fae0-7d30-47b1-89a9-98729d59d8c6)
 
-### Genrate NPC and start game
+### Star game
 
 ![p3](https://github.com/user-attachments/assets/271190a0-9b2c-403f-ac2d-f87fcbc5c898)
 
