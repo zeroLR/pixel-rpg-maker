@@ -1,0 +1,46 @@
+
+export enum EntityType {
+    NPC = 'NPC',
+    MONSTER = 'MONSTER'
+}
+
+export enum GameState {
+    MENU = 'MENU',
+    WORKSHOP = 'WORKSHOP',
+    GALLERY = 'GALLERY',
+    TOWN = 'TOWN',
+    FOREST = 'FOREST',
+    BATTLE = 'BATTLE',
+    DIALOGUE = 'DIALOGUE'
+}
+
+export interface Stats {
+    hp: number;
+    maxHp: number;
+    mp: number;
+    maxMp: number;
+    atk: number;
+    def: number;
+}
+
+export interface Entity {
+    id: string;
+    name: string;
+    description: string;
+    type: EntityType;
+    imageBase64: string;
+    stats: Stats;
+    dialoguePrompt?: string; // For NPCs
+    tags: string[];
+}
+
+export interface Player {
+    name: string;
+    stats: Stats;
+    inventory: string[];
+}
+
+export interface ChatMessage {
+    sender: string;
+    text: string;
+}
