@@ -16,7 +16,7 @@ export const generatePixelAsset = async (prompt: string, type: EntityType, tags:
 
     // 1. Generate Image
     // Using gemini-2.5-flash-image for generation as per guidelines
-    const imagePrompt = `A high-quality 16-bit pixel art sprite of a ${prompt} for an RPG game. ${tagContext} White background, full body, centered, retro style.`;
+    const imagePrompt = `A high-quality 16-bit pixel art sprite of a ${type} described as "${prompt}". ${tagContext} White background, full body, centered, retro style.`;
     
     const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
@@ -35,19 +35,39 @@ export const generatePixelAsset = async (prompt: string, type: EntityType, tags:
     }
 
     // 2. Generate Stats & Lore
-    // Using gemini-2.5-flash for JSON structured data
-    const statPrompt = `Generate RPG stats and details for a ${type} described as "${prompt}". 
-    ${tagContext}
-    Return ONLY JSON. 
-    Rules:
-    - HP between 50-200.
-    - MP between 0-100.
-    - ATK between 5-30.
-    - DEF between 0-20.
-    - Name should be creative.
-    - Description should be short (under 20 words).
-    - If NPC, include a 'dialoguePrompt' describing their personality for a roleplay chat.
-    `;
+    let statPrompt = '';
+
+    if (type === EntityType.HERO) {
+        statPrompt = `Generate RPG stats for a HERO described as "${prompt}". ${tagContext}
+        Return ONLY JSON.
+        
+        CRITICAL STAT CONSTRAINTS:
+        - ATK range: 5-20 (Weight: 10)
+        - DEF range: 5-20 (Weight: 10)
+        - HP range: 50-200 (Weight: 1)
+        - MP range: 25-100 (Weight: 2)
+        
+        The Weighted Total Score MUST be between 400 and 600.
+        Formula: (ATK * 10) + (DEF * 10) + (HP * 1) + (MP * 2)
+        
+        Example: ATK 12, DEF 10, HP 100, MP 50 -> 120 + 100 + 100 + 100 = 420 (Valid).
+        
+        Also include a creative Name and short Description.
+        `;
+    } else {
+        statPrompt = `Generate RPG stats and details for a ${type} described as "${prompt}". 
+        ${tagContext}
+        Return ONLY JSON. 
+        Rules:
+        - HP between 50-200.
+        - MP between 0-100.
+        - ATK between 5-30.
+        - DEF between 0-20.
+        - Name should be creative.
+        - Description should be short (under 20 words).
+        - If NPC, include a 'dialoguePrompt' describing their personality for a roleplay chat.
+        `;
+    }
 
     const textResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash',

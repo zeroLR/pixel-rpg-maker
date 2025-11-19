@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Entity, EntityType, GameState, Player, ChatMessage } from '../types';
+import { Entity, Player, ChatMessage } from '../types';
 import { Button, Card, StatBar } from './UI';
 import { generateChatResponse } from '../services/geminiService';
 
@@ -10,9 +10,10 @@ interface GameProps {
     npcs: Entity[];
     monsters: Entity[];
     onExit: () => void;
+    onSave: (slot: number) => void;
 }
 
-export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters, onExit }) => {
+export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters, onExit, onSave }) => {
     const [location, setLocation] = useState<'TOWN' | 'FOREST' | null>(null);
     const [currentEntity, setCurrentEntity] = useState<Entity | null>(null);
     const [logs, setLogs] = useState<string[]>(["Welcome to the world of Pixel RPG."]);
@@ -20,6 +21,8 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
     const [chatInput, setChatInput] = useState('');
     const [isChatting, setIsChatting] = useState(false);
     const [isBattling, setIsBattling] = useState(false);
+    const [showSaveMenu, setShowSaveMenu] = useState(false);
+    const [backgroundUrl, setBackgroundUrl] = useState('');
     
     // Battle specific state
     const [battleTurn, setBattleTurn] = useState<'PLAYER' | 'ENEMY'>('PLAYER');
@@ -44,6 +47,18 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
         setIsChatting(false);
         setIsBattling(false);
         addLog(`You traveled to the ${dest.toLowerCase()}.`);
+
+        // Generate Random Pixel Art Background
+        const styles = ['fantasy', 'dark fantasy', 'mystical', 'retro', 'vibrant', 'ruined', 'ethereal', 'cyberpunk'];
+        const randomStyle = styles[Math.floor(Math.random() * styles.length)];
+        const basePrompt = dest === 'TOWN' 
+            ? `pixel art rpg town village street background ${randomStyle} style` 
+            : `pixel art rpg forest woods nature background ${randomStyle} style`;
+        
+        // Add a random seed to ensure the image URL is unique and triggers a reload if needed, or just for variety
+        const seed = Math.floor(Math.random() * 10000);
+        const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(basePrompt)}?width=1024&height=768&seed=${seed}&nologo=true`;
+        setBackgroundUrl(url);
         
         // Auto-encounter logic
         setTimeout(() => {
@@ -75,6 +90,8 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
         setCurrentEntity(null);
         setIsBattling(false);
         setIsChatting(false);
+        setShowSaveMenu(false);
+        setBackgroundUrl(''); // Reset background when returning to map
     };
 
     // -- Battle Logic --
@@ -192,7 +209,16 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
         // Map Selection
         return (
             <div className="h-full flex flex-col items-center justify-center p-4 gap-6 animate-fade-in">
-                <h2 className="text-3xl text-white pixel-font mb-4">Select Destination</h2>
+                <div className="flex gap-4 items-center mb-4">
+                     {player.imageBase64 && (
+                        <img src={`data:image/png;base64,${player.imageBase64}`} className="w-16 h-16 pixelated border-2 border-yellow-500 bg-slate-900 rounded-full" alt="Hero" style={{imageRendering: 'pixelated'}} />
+                     )}
+                     <div>
+                         <h2 className="text-3xl text-white pixel-font">Select Destination</h2>
+                         <p className="text-slate-400 text-sm">Hero: {player.name}</p>
+                     </div>
+                </div>
+                
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
                     <button 
                         onClick={() => handleTravel('TOWN')}
@@ -214,7 +240,26 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
                         <p className="text-slate-400 z-10">Battle Monsters, Gain Glory</p>
                     </button>
                 </div>
-                <Button onClick={onExit} variant="secondary" className="mt-8">Main Menu</Button>
+                
+                <div className="flex gap-4 mt-8">
+                    <Button onClick={() => setShowSaveMenu(!showSaveMenu)} variant="primary">
+                        {showSaveMenu ? 'Close Save Menu' : 'Save Game'}
+                    </Button>
+                    <Button onClick={onExit} variant="secondary">Main Menu</Button>
+                </div>
+
+                {showSaveMenu && (
+                    <div className="bg-slate-900 border-2 border-slate-600 p-4 rounded-lg w-full max-w-md animate-slide-up">
+                        <h3 className="text-yellow-400 mb-4 text-center pixel-font">Select Save Slot</h3>
+                        <div className="grid grid-cols-3 gap-2">
+                            {[1, 2, 3].map(slot => (
+                                <Button key={slot} onClick={() => { onSave(slot); addLog(`Game Saved to Slot ${slot}`); }} variant="success" className="text-xs">
+                                    Slot {slot}
+                                </Button>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
         );
     }
@@ -225,15 +270,25 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
             <div className="flex-1 flex flex-col gap-4">
                 <Card className="flex-1 flex flex-col relative overflow-hidden min-h-[300px]">
                     {/* Background indication */}
-                    <div className={`absolute inset-0 opacity-20 pointer-events-none ${location === 'TOWN' ? 'bg-[url("https://picsum.photos/800/600?grayscale&blur=2")]' : 'bg-[url("https://picsum.photos/800/600?blur=2")]'}`} />
+                    <div 
+                        className="absolute inset-0 opacity-30 pointer-events-none bg-cover bg-center transition-all duration-1000"
+                        style={{ backgroundImage: `url("${backgroundUrl}")` }}
+                    />
                     
                     {/* HUD */}
-                    <div className="relative z-10 bg-slate-900/80 p-2 border-b-2 border-slate-700 flex justify-between items-center">
-                        <div className="flex flex-col w-1/3">
+                    <div className="relative z-10 bg-slate-900/80 p-2 border-b-2 border-slate-700 flex justify-between items-center gap-4">
+                         {player.imageBase64 && (
+                             <img src={`data:image/png;base64,${player.imageBase64}`} className="w-12 h-12 pixelated border border-slate-500 bg-black" alt="Hero" style={{imageRendering: 'pixelated'}} />
+                         )}
+                        <div className="flex flex-col flex-1">
+                            <div className="flex justify-between text-xs text-slate-400 mb-1">
+                                <span>{player.name}</span>
+                                <span>ATK: {player.stats.atk} | DEF: {player.stats.def}</span>
+                            </div>
                             <StatBar label="HP" current={player.stats.hp} max={player.stats.maxHp} color="bg-red-500" />
                             <StatBar label="MP" current={player.stats.mp} max={player.stats.maxMp} color="bg-blue-500" />
                         </div>
-                        <span className="pixel-font text-yellow-400">{location}</span>
+                        <span className="pixel-font text-yellow-400 text-lg ml-4">{location}</span>
                     </div>
 
                     {/* Main Viewport */}
@@ -256,7 +311,7 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
                                 </div>
                             </div>
                         ) : (
-                            <div className="text-slate-500 italic">No one is here...</div>
+                            <div className="text-slate-500 italic bg-slate-900/50 p-2 rounded">No one is here...</div>
                         )}
                     </div>
                 </Card>
@@ -284,8 +339,8 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
             </div>
 
             {/* Right Panel: Logs/Chat */}
-            <div className="w-full md:w-1/3 flex flex-col gap-4 h-[40vh] md:h-auto">
-                <Card title={isChatting ? `Chat: ${currentEntity?.name}` : "Adventure Log"} className="flex-1 flex flex-col overflow-hidden">
+            <div className="w-full md:w-1/3 flex flex-col gap-4 h-[40vh] md:h-[600px]">
+                <Card title={isChatting ? `Chat: ${currentEntity?.name}` : "Adventure Log"} className="flex-1 flex flex-col overflow-hidden min-h-0">
                     <div className="flex-1 overflow-y-auto space-y-2 p-2 bg-slate-900/50 font-mono text-sm border-2 border-slate-700 inner-shadow">
                         {isChatting ? (
                             chatHistory.map((msg, idx) => (

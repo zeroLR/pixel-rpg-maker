@@ -9,11 +9,22 @@ interface GalleryProps {
     onDelete: (ids: string[]) => void;
     onToggleWorldStatus: (entities: Entity[], shouldAdd: boolean) => void;
     onBack: () => void;
+    // New props for Selection Mode
+    onSelect?: (entity: Entity) => void;
+    selectionMode?: boolean;
 }
 
-export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDelete, onToggleWorldStatus, onBack }) => {
+export const Gallery: React.FC<GalleryProps> = ({ 
+    entities, 
+    worldEntityIds, 
+    onDelete, 
+    onToggleWorldStatus, 
+    onBack,
+    onSelect,
+    selectionMode = false
+}) => {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-    const [filter, setFilter] = useState<'ALL' | EntityType>('ALL');
+    const [filter, setFilter] = useState<'ALL' | EntityType>(selectionMode ? EntityType.HERO : 'ALL');
     const [tagFilter, setTagFilter] = useState<string | null>(null);
 
     // Extract all unique tags from current entities
@@ -64,9 +75,11 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
     return (
         <div className="max-w-6xl mx-auto p-4 h-full flex flex-col animate-fade-in">
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
-                <h2 className="text-2xl md:text-3xl text-yellow-400 pixel-font">Asset Gallery</h2>
+                <h2 className="text-2xl md:text-3xl text-yellow-400 pixel-font">
+                    {selectionMode ? "Select Your Hero" : "Asset Gallery"}
+                </h2>
                 <div className="flex flex-wrap gap-2 justify-end">
-                    {selectedIds.size > 0 && (
+                    {!selectionMode && selectedIds.size > 0 && (
                         <>
                              <Button onClick={handleAddToWorld} variant="success" className="text-xs">
                                 + World ({selectedIds.size})
@@ -79,30 +92,42 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
                              </Button>
                         </>
                     )}
-                    <Button onClick={onBack} variant="secondary">Back to Menu</Button>
+                    <Button onClick={onBack} variant="secondary">
+                        {selectionMode ? "Cancel" : "Back to Menu"}
+                    </Button>
                 </div>
             </div>
 
             {/* Type Filter Tabs */}
             <div className="flex flex-wrap gap-4 mb-4 border-b-2 border-slate-700 pb-2 items-center justify-between">
                 <div className="flex gap-2">
+                    {!selectionMode && (
+                        <>
+                            <button 
+                                onClick={() => setFilter('ALL')}
+                                className={`px-4 py-1 font-bold transition-colors ${filter === 'ALL' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                ALL
+                            </button>
+                            <button 
+                                onClick={() => setFilter(EntityType.NPC)}
+                                className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.NPC ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                NPCs
+                            </button>
+                            <button 
+                                onClick={() => setFilter(EntityType.MONSTER)}
+                                className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.MONSTER ? 'text-red-400 border-b-2 border-red-400' : 'text-slate-500 hover:text-slate-300'}`}
+                            >
+                                MONSTERS
+                            </button>
+                        </>
+                    )}
                     <button 
-                        onClick={() => setFilter('ALL')}
-                        className={`px-4 py-1 font-bold transition-colors ${filter === 'ALL' ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-slate-500 hover:text-slate-300'}`}
+                        onClick={() => setFilter(EntityType.HERO)}
+                        className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.HERO ? 'text-yellow-400 border-b-2 border-yellow-400' : 'text-slate-500 hover:text-slate-300'}`}
                     >
-                        ALL ({entities.length})
-                    </button>
-                    <button 
-                        onClick={() => setFilter(EntityType.NPC)}
-                        className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.NPC ? 'text-blue-400 border-b-2 border-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        NPCs ({entities.filter(e => e.type === EntityType.NPC).length})
-                    </button>
-                    <button 
-                        onClick={() => setFilter(EntityType.MONSTER)}
-                        className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.MONSTER ? 'text-red-400 border-b-2 border-red-400' : 'text-slate-500 hover:text-slate-300'}`}
-                    >
-                        MONSTERS ({entities.filter(e => e.type === EntityType.MONSTER).length})
+                        HEROES
                     </button>
                 </div>
             </div>
@@ -134,23 +159,50 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
                     {filteredEntities.map(entity => {
                         const isSelected = selectedIds.has(entity.id);
                         const isInWorld = worldEntityIds.has(entity.id);
+                        
                         return (
                             <div 
                                 key={entity.id}
-                                onClick={() => toggleSelection(entity.id)}
+                                onClick={() => {
+                                    if (selectionMode && onSelect) {
+                                        onSelect(entity);
+                                    } else {
+                                        toggleSelection(entity.id);
+                                    }
+                                }}
                                 className={`
                                     relative cursor-pointer group select-none
-                                    bg-slate-800 border-4 p-2 transition-all
+                                    bg-slate-800 border-4 p-2 transition-all overflow-hidden
                                     ${isSelected ? 'border-yellow-400 bg-slate-700 transform scale-95' : 'border-slate-600 hover:border-slate-500 hover:-translate-y-1'}
+                                    ${selectionMode ? 'hover:border-yellow-500 hover:shadow-[0_0_15px_rgba(234,179,8,0.5)]' : ''}
                                 `}
                             >
-                                {isSelected && (
+                                {/* Hover Overlay Info */}
+                                <div className="absolute inset-0 bg-slate-900/95 p-4 flex flex-col justify-center items-center text-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
+                                    <h5 className="text-yellow-400 text-sm font-bold mb-2 pixel-font">{entity.name}</h5>
+                                    <p className="text-xs text-slate-300 mb-3 line-clamp-4 italic leading-tight">"{entity.description}"</p>
+                                    
+                                    <div className="w-full bg-slate-800 p-2 rounded text-xs border border-slate-600 grid grid-cols-2 gap-x-4 gap-y-1">
+                                         <div className="flex justify-between"><span className="text-red-400 font-bold">HP</span> <span>{entity.stats.maxHp}</span></div>
+                                         <div className="flex justify-between"><span className="text-blue-400 font-bold">MP</span> <span>{entity.stats.maxMp}</span></div>
+                                         <div className="flex justify-between"><span className="text-orange-400 font-bold">ATK</span> <span>{entity.stats.atk}</span></div>
+                                         <div className="flex justify-between"><span className="text-green-400 font-bold">DEF</span> <span>{entity.stats.def}</span></div>
+                                    </div>
+                                    
+                                    {entity.tags && entity.tags.length > 0 && (
+                                         <div className="mt-2 flex flex-wrap justify-center gap-1">
+                                             {entity.tags.slice(0, 3).map(t => <span key={t} className="text-[8px] bg-slate-700 px-1 rounded text-slate-400">{t}</span>)}
+                                         </div>
+                                    )}
+                                </div>
+
+                                {isSelected && !selectionMode && (
                                     <div className="absolute top-2 right-2 z-20 bg-yellow-400 text-black w-6 h-6 flex items-center justify-center font-bold border-2 border-black shadow-md">
                                         ✓
                                     </div>
                                 )}
 
-                                {isInWorld && (
+                                {!selectionMode && isInWorld && (
                                     <div className="absolute top-2 left-2 z-20 bg-blue-500 text-white w-6 h-6 flex items-center justify-center font-bold border-2 border-white shadow-md rounded-full text-xs" title="In Game World">
                                         🌍
                                     </div>
@@ -164,7 +216,9 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
                                         style={{ imageRendering: 'pixelated' }}
                                     />
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1">
-                                        <div className={`text-[10px] font-bold text-center tracking-wider ${entity.type === EntityType.NPC ? 'text-blue-300' : 'text-red-300'}`}>
+                                        <div className={`text-[10px] font-bold text-center tracking-wider 
+                                            ${entity.type === EntityType.NPC ? 'text-blue-300' : 
+                                              entity.type === EntityType.MONSTER ? 'text-red-300' : 'text-yellow-300'}`}>
                                             {entity.type}
                                         </div>
                                     </div>
@@ -176,14 +230,6 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
                                         <span className="text-red-300">HP {entity.stats.maxHp}</span>
                                         <span className="text-orange-300">ATK {entity.stats.atk}</span>
                                     </div>
-                                    {entity.tags && entity.tags.length > 0 && (
-                                        <div className="flex justify-center gap-1 mt-1 flex-wrap h-4 overflow-hidden">
-                                            {entity.tags.slice(0, 2).map(t => (
-                                                <span key={t} className="text-[8px] text-slate-500 bg-slate-900 px-1 rounded">{t}</span>
-                                            ))}
-                                            {entity.tags.length > 2 && <span className="text-[8px] text-slate-500">...</span>}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         );
@@ -192,7 +238,8 @@ export const Gallery: React.FC<GalleryProps> = ({ entities, worldEntityIds, onDe
                     {filteredEntities.length === 0 && (
                         <div className="col-span-full flex flex-col items-center justify-center py-20 text-slate-500 border-2 border-dashed border-slate-700 rounded-lg">
                             <p className="mb-4">No assets found matching filters.</p>
-                            <Button onClick={() => { setFilter('ALL'); setTagFilter(null); }} variant="secondary">Clear Filters</Button>
+                            {selectionMode && <p className="text-yellow-500 mb-4">Go to Workshop to generate a HERO!</p>}
+                            <Button onClick={() => { setFilter(selectionMode ? EntityType.HERO : 'ALL'); setTagFilter(null); }} variant="secondary">Clear Filters</Button>
                         </div>
                     )}
                 </div>

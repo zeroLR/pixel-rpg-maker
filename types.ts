@@ -1,13 +1,16 @@
 
 export enum EntityType {
     NPC = 'NPC',
-    MONSTER = 'MONSTER'
+    MONSTER = 'MONSTER',
+    HERO = 'HERO'
 }
 
 export enum GameState {
     MENU = 'MENU',
     WORKSHOP = 'WORKSHOP',
     GALLERY = 'GALLERY',
+    SELECT_HERO = 'SELECT_HERO',
+    LOAD_GAME = 'LOAD_GAME',
     TOWN = 'TOWN',
     FOREST = 'FOREST',
     BATTLE = 'BATTLE',
@@ -38,9 +41,18 @@ export interface Player {
     name: string;
     stats: Stats;
     inventory: string[];
+    imageBase64?: string;
 }
 
 export interface ChatMessage {
     sender: string;
     text: string;
+}
+
+export interface SaveData {
+    timestamp: string;
+    player: Player;
+    worldNpcs: Entity[];
+    worldMonsters: Entity[];
+    location: string | null;
 }

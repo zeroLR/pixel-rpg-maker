@@ -113,18 +113,24 @@ export const Workshop: React.FC<WorkshopProps> = ({
                     <div className="flex flex-col gap-4">
                         <div>
                             <label className="block text-sm mb-2 text-slate-300">Entity Type</label>
-                            <div className="flex gap-4">
+                            <div className="flex gap-2">
                                 <button 
                                     onClick={() => setType(EntityType.MONSTER)}
-                                    className={`flex-1 p-3 border-2 text-center transition-colors ${type === EntityType.MONSTER ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-slate-600 text-slate-500'}`}
+                                    className={`flex-1 p-2 border-2 text-center text-xs md:text-sm transition-colors ${type === EntityType.MONSTER ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-slate-600 text-slate-500'}`}
                                 >
                                     MONSTER
                                 </button>
                                 <button 
                                     onClick={() => setType(EntityType.NPC)}
-                                    className={`flex-1 p-3 border-2 text-center transition-colors ${type === EntityType.NPC ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-slate-600 text-slate-500'}`}
+                                    className={`flex-1 p-2 border-2 text-center text-xs md:text-sm transition-colors ${type === EntityType.NPC ? 'border-blue-500 bg-blue-500/20 text-blue-300' : 'border-slate-600 text-slate-500'}`}
                                 >
                                     NPC
+                                </button>
+                                <button 
+                                    onClick={() => setType(EntityType.HERO)}
+                                    className={`flex-1 p-2 border-2 text-center text-xs md:text-sm transition-colors ${type === EntityType.HERO ? 'border-yellow-500 bg-yellow-500/20 text-yellow-300' : 'border-slate-600 text-slate-500'}`}
+                                >
+                                    HERO
                                 </button>
                             </div>
                         </div>
@@ -169,7 +175,7 @@ export const Workshop: React.FC<WorkshopProps> = ({
                             <label className="block text-sm mb-2 text-slate-300">Description Prompt</label>
                             <textarea 
                                 className="w-full bg-slate-900 border-2 border-slate-700 p-3 text-white focus:border-yellow-500 focus:outline-none h-32 resize-none"
-                                placeholder={`e.g., "A fiery dragon with obsidian scales" or "A cyberpunk merchant with a robotic eye"`}
+                                placeholder={`e.g., "A fiery dragon", "A cyberpunk merchant", or "A legendary knight in golden armor"`}
                                 value={prompt}
                                 onChange={(e) => setPrompt(e.target.value)}
                             />
@@ -210,6 +216,10 @@ export const Workshop: React.FC<WorkshopProps> = ({
                             
                             <h3 className="text-2xl font-bold text-white mb-1">{generatedEntity.name}</h3>
                             <p className="text-slate-400 text-sm text-center italic mb-2 px-4">{generatedEntity.description}</p>
+                            
+                             <div className="text-xs text-slate-500 mb-2 bg-slate-800 px-2 py-1 rounded border border-slate-700">
+                                Type: <span className="text-yellow-400 font-bold">{generatedEntity.type}</span>
+                            </div>
 
                             {/* Tags display */}
                             {generatedEntity.tags && generatedEntity.tags.length > 0 && (
@@ -232,9 +242,11 @@ export const Workshop: React.FC<WorkshopProps> = ({
                             </div>
 
                             <div className="flex flex-col gap-2 w-full">
-                                <Button onClick={handleAddToWorld} variant="success" className="w-full">
-                                    Add to World (Play)
-                                </Button>
+                                {generatedEntity.type !== EntityType.HERO && (
+                                    <Button onClick={handleAddToWorld} variant="success" className="w-full">
+                                        Add to World (Play)
+                                    </Button>
+                                )}
                                 <div className="flex gap-2">
                                     <Button onClick={handleSaveToGallery} variant="primary" className="flex-1">
                                         Save to Gallery
@@ -243,6 +255,9 @@ export const Workshop: React.FC<WorkshopProps> = ({
                                         Re-generate
                                     </Button>
                                 </div>
+                                {generatedEntity.type === EntityType.HERO && (
+                                    <p className="text-xs text-center text-yellow-500 mt-2">Save this Hero to the Gallery to use them in a new adventure!</p>
+                                )}
                             </div>
                         </div>
                     ) : (

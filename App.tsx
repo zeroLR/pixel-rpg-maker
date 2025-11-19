@@ -1,98 +1,66 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { GameState, Entity, Player, EntityType } from './types';
+import { GameState, Entity, Player, EntityType, SaveData } from './types';
 import { Workshop } from './components/Workshop';
 import { Game } from './components/Game';
 import { Gallery } from './components/Gallery';
 import { Button, Card } from './components/UI';
 import * as storage from './services/storageService';
 
-const INITIAL_PLAYER: Player = {
-    name: "Hero",
-    stats: {
-        hp: 100,
-        maxHp: 100,
-        mp: 100,
-        maxMp: 100,
-        atk: 10,
-        def: 10
-    },
-    inventory: []
-};
-
 const App: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [gameState, setGameState] = useState<GameState>(GameState.MENU);
-    const [player, setPlayer] = useState<Player>(INITIAL_PLAYER);
+    const [player, setPlayer] = useState<Player | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [storageError, setStorageError] = useState<string | null>(null);
     
-    // State - Initialized empty, populates via useEffect
+    // Global Library State
     const [libraryNpcs, setLibraryNpcs] = useState<Entity[]>([]);
     const [libraryMonsters, setLibraryMonsters] = useState<Entity[]>([]);
-    const [worldNpcs, setWorldNpcs] = useState<Entity[]>([]);
-    const [worldMonsters, setWorldMonsters] = useState<Entity[]>([]);
+    const [libraryHeroes, setLibraryHeroes] = useState<Entity[]>([]);
     const [labels, setLabels] = useState<string[]>([]);
 
-    // Initial Load & Migration Effect
+    // World Configuration (Assets selected to appear in New Games)
+    const [activeEntityIds, setActiveEntityIds] = useState<string[]>([]);
+
+    // Active Game World State (Runtime)
+    const [worldNpcs, setWorldNpcs] = useState<Entity[]>([]);
+    const [worldMonsters, setWorldMonsters] = useState<Entity[]>([]);
+
+    // Settings & Saves
+    const [autoSave, setAutoSave] = useState(true);
+    const [saveSlots, setSaveSlots] = useState<(SaveData | null)[]>([null, null, null]);
+
+    // Initial Load
     useEffect(() => {
         const initializeApp = async () => {
             try {
-                // Try load from IDB
-                const [dbLibNpcs, dbLibMonsters, dbWorldNpcs, dbWorldMonsters, dbLabels] = await Promise.all([
+                // Load Library
+                const [dbLibNpcs, dbLibMonsters, dbLibHeroes, dbLabels, dbActiveIds] = await Promise.all([
                     storage.getItem<Entity[]>('pixel_rpg_library_npcs'),
                     storage.getItem<Entity[]>('pixel_rpg_library_monsters'),
-                    storage.getItem<Entity[]>('pixel_rpg_world_npcs'),
-                    storage.getItem<Entity[]>('pixel_rpg_world_monsters'),
-                    storage.getItem<string[]>('pixel_rpg_labels')
+                    storage.getItem<Entity[]>('pixel_rpg_library_heroes'),
+                    storage.getItem<string[]>('pixel_rpg_labels'),
+                    storage.getItem<string[]>('pixel_rpg_active_ids')
                 ]);
 
-                // Checks for data existence
-                const hasDBData = dbLibNpcs || dbLibMonsters || dbLabels;
+                setLibraryNpcs(dbLibNpcs || []);
+                setLibraryMonsters(dbLibMonsters || []);
+                setLibraryHeroes(dbLibHeroes || []);
+                setLabels(dbLabels || ['Fantasy', 'Sci-Fi', 'Dark', 'Boss']);
+                setActiveEntityIds(dbActiveIds || []);
 
-                if (!hasDBData) {
-                    console.log("No IDB data found. Checking LocalStorage for migration...");
-                    // Migration Logic: Pull from localStorage if IDB is empty
-                    const lsLibNpcs = localStorage.getItem('pixel_rpg_library_npcs') || localStorage.getItem('pixel_rpg_npcs');
-                    const lsLibMonsters = localStorage.getItem('pixel_rpg_library_monsters') || localStorage.getItem('pixel_rpg_monsters');
-                    const lsWorldNpcs = localStorage.getItem('pixel_rpg_world_npcs');
-                    const lsWorldMonsters = localStorage.getItem('pixel_rpg_world_monsters');
-                    const lsLabels = localStorage.getItem('pixel_rpg_labels');
-
-                    const cleanParse = (str: string | null, fallback: any) => str ? JSON.parse(str) : fallback;
-
-                    const migratedLibNpcs = cleanParse(lsLibNpcs, []);
-                    const migratedLibMonsters = cleanParse(lsLibMonsters, []);
-                    const migratedWorldNpcs = cleanParse(lsWorldNpcs, []);
-                    const migratedWorldMonsters = cleanParse(lsWorldMonsters, []);
-                    const migratedLabels = cleanParse(lsLabels, ['Fantasy', 'Sci-Fi', 'Cute', 'Dark', 'Boss']);
-
-                    // Set State
-                    setLibraryNpcs(migratedLibNpcs);
-                    setLibraryMonsters(migratedLibMonsters);
-                    setWorldNpcs(migratedWorldNpcs);
-                    setWorldMonsters(migratedWorldMonsters);
-                    setLabels(migratedLabels);
-
-                    // Save to IDB immediately
-                    await Promise.all([
-                        storage.setItem('pixel_rpg_library_npcs', migratedLibNpcs),
-                        storage.setItem('pixel_rpg_library_monsters', migratedLibMonsters),
-                        storage.setItem('pixel_rpg_world_npcs', migratedWorldNpcs),
-                        storage.setItem('pixel_rpg_world_monsters', migratedWorldMonsters),
-                        storage.setItem('pixel_rpg_labels', migratedLabels)
-                    ]);
-                    
-                    // Optional: Clear localStorage after successful migration to free up space?
-                    // keeping it for now as backup or manually cleared.
-                } else {
-                    // Normal Load
-                    setLibraryNpcs(dbLibNpcs || []);
-                    setLibraryMonsters(dbLibMonsters || []);
-                    setWorldNpcs(dbWorldNpcs || []);
-                    setWorldMonsters(dbWorldMonsters || []);
-                    setLabels(dbLabels || ['Fantasy', 'Sci-Fi', 'Cute', 'Dark', 'Boss']);
+                // Load Save Metadata (Preview of slots)
+                const slots: (SaveData | null)[] = [];
+                for (let i = 1; i <= 3; i++) {
+                    const data = await storage.getItem<SaveData>(`pixel_rpg_save_${i}`);
+                    slots.push(data);
                 }
+                setSaveSlots(slots);
+
+                // Load AutoSave setting
+                const storedAutoSave = await storage.getItem<boolean>('pixel_rpg_autosave');
+                if (storedAutoSave !== null) setAutoSave(storedAutoSave);
 
             } catch (e) {
                 console.error("Failed to initialize app data:", e);
@@ -105,263 +73,313 @@ const App: React.FC = () => {
         initializeApp();
     }, []);
 
-    // Helper for safe storage (async)
+    // Library Persistence
     const saveToDB = async (key: string, data: any) => {
         try {
             await storage.setItem(key, data);
         } catch (e: any) {
             console.error("Storage failed", e);
-            setStorageError("⚠️ Storage Error! Failed to save data to IndexedDB.");
+            setStorageError("⚠️ Storage Error! Failed to save data.");
         }
     };
 
-    // Persistence Effects - using separate effects to avoid saving everything on one change
-    // Note: We add a check for !loading to avoid saving empty initial states over existing data
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_npcs', libraryNpcs); }, [libraryNpcs, loading]);
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_monsters', libraryMonsters); }, [libraryMonsters, loading]);
-    useEffect(() => { if(!loading) saveToDB('pixel_rpg_world_npcs', worldNpcs); }, [worldNpcs, loading]);
-    useEffect(() => { if(!loading) saveToDB('pixel_rpg_world_monsters', worldMonsters); }, [worldMonsters, loading]);
+    useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_heroes', libraryHeroes); }, [libraryHeroes, loading]);
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_labels', labels); }, [labels, loading]);
+    useEffect(() => { if(!loading) saveToDB('pixel_rpg_autosave', autoSave); }, [autoSave, loading]);
+    useEffect(() => { if(!loading) saveToDB('pixel_rpg_active_ids', activeEntityIds); }, [activeEntityIds, loading]);
 
-    // Workshop Handlers
+    // --- Workshop Handlers ---
     const handleAddToLibrary = (entity: Entity) => {
-        if (entity.type === EntityType.NPC) {
-            setLibraryNpcs(prev => [...prev, entity]);
-        } else {
-            setLibraryMonsters(prev => [...prev, entity]);
-        }
+        if (entity.type === EntityType.NPC) setLibraryNpcs(prev => [...prev, entity]);
+        else if (entity.type === EntityType.MONSTER) setLibraryMonsters(prev => [...prev, entity]);
+        else if (entity.type === EntityType.HERO) setLibraryHeroes(prev => [...prev, entity]);
     };
 
     const handleAddToWorld = (entity: Entity) => {
-        if (entity.type === EntityType.NPC) {
-            setWorldNpcs(prev => [...prev, entity]);
+        // Add to Library first if not exists (implicitly handled by Save to Gallery, but here we just enable it)
+        // Logic: If user clicks "Add to World" in Workshop, we assume they want it in the encounter table.
+        // We also ensure it's in the library so it persists.
+        handleAddToLibrary(entity);
+        
+        if (entity.type !== EntityType.HERO) {
+            setActiveEntityIds(prev => prev.includes(entity.id) ? prev : [...prev, entity.id]);
         } else {
-            setWorldMonsters(prev => [...prev, entity]);
+            alert("Heroes cannot be added as NPCs/Monsters. Save to Gallery and select 'Start New Adventure'!");
         }
     };
 
-    // Gallery Handlers
+    // --- Gallery Handlers ---
     const handleDeleteFromLibrary = (ids: string[]) => {
-        setLibraryNpcs(prev => prev.filter(e => !ids.includes(e.id)));
-        setLibraryMonsters(prev => prev.filter(e => !ids.includes(e.id)));
-        setWorldNpcs(prev => prev.filter(e => !ids.includes(e.id)));
-        setWorldMonsters(prev => prev.filter(e => !ids.includes(e.id)));
-        setStorageError(null); 
+        const filterFn = (e: Entity) => !ids.includes(e.id);
+        setLibraryNpcs(prev => prev.filter(filterFn));
+        setLibraryMonsters(prev => prev.filter(filterFn));
+        setLibraryHeroes(prev => prev.filter(filterFn));
+        
+        // Also remove from active configuration
+        setActiveEntityIds(prev => prev.filter(id => !ids.includes(id)));
     };
 
     const handleToggleWorldStatus = (entities: Entity[], shouldAdd: boolean) => {
-        entities.forEach(entity => {
+        const targetIds = entities.map(e => e.id);
+        setActiveEntityIds(prev => {
             if (shouldAdd) {
-                const isNpc = entity.type === EntityType.NPC;
-                const list = isNpc ? worldNpcs : worldMonsters;
-                if (!list.find(e => e.id === entity.id)) {
-                    if (isNpc) setWorldNpcs(prev => [...prev, entity]);
-                    else setWorldMonsters(prev => [...prev, entity]);
-                }
+                // Add unique IDs
+                const next = new Set(prev);
+                targetIds.forEach(id => next.add(id));
+                return Array.from(next);
             } else {
-                if (entity.type === EntityType.NPC) {
-                    setWorldNpcs(prev => prev.filter(e => e.id !== entity.id));
-                } else {
-                    setWorldMonsters(prev => prev.filter(e => e.id !== entity.id));
-                }
+                // Remove IDs
+                return prev.filter(id => !targetIds.includes(id));
             }
         });
     };
 
-    const handleCreateLabel = (label: string) => {
-        if (!labels.includes(label)) {
-            setLabels([...labels, label]);
+    // --- Game Flow ---
+
+    const handleSelectHero = (hero: Entity) => {
+        // Initialize New Game
+        const newPlayer: Player = {
+            name: hero.name,
+            stats: { ...hero.stats },
+            inventory: [],
+            imageBase64: hero.imageBase64
+        };
+        setPlayer(newPlayer);
+        
+        // Initialize World from Configuration (activeEntityIds)
+        const initialNpcs = libraryNpcs.filter(e => activeEntityIds.includes(e.id));
+        const initialMonsters = libraryMonsters.filter(e => activeEntityIds.includes(e.id));
+        
+        setWorldNpcs(initialNpcs);
+        setWorldMonsters(initialMonsters);
+        setGameState(GameState.TOWN);
+    };
+
+    const handleSaveGame = async (slotId: number) => {
+        if (!player) return;
+        const data: SaveData = {
+            timestamp: new Date().toLocaleString(),
+            player,
+            worldNpcs,
+            worldMonsters,
+            location: 'TOWN' 
+        };
+        await storage.setItem(`pixel_rpg_save_${slotId}`, data);
+        
+        // Update slots preview
+        setSaveSlots(prev => {
+            const next = [...prev];
+            next[slotId - 1] = data;
+            return next;
+        });
+
+        if(slotId !== 1) alert(`Game saved to Slot ${slotId}!`);
+    };
+
+    const handleLoadGame = (slotId: number) => {
+        const data = saveSlots[slotId - 1];
+        if (!data) return;
+
+        setPlayer(data.player);
+        setWorldNpcs(data.worldNpcs);
+        setWorldMonsters(data.worldMonsters);
+        setGameState(GameState.TOWN); 
+    };
+
+    // Auto Save Logic (Slot 1)
+    useEffect(() => {
+        if (autoSave && player && (gameState === GameState.TOWN || gameState === GameState.FOREST)) {
+             // Simple autosave on state change/navigation
+             handleSaveGame(1);
         }
-    };
+    }, [gameState, player, autoSave]);
 
-    const handleDeleteLabel = (label: string) => {
-        setLabels(labels.filter(l => l !== label));
-    };
+    // --- Labels ---
+    const handleCreateLabel = (l: string) => !labels.includes(l) && setLabels([...labels, l]);
+    const handleDeleteLabel = (l: string) => setLabels(labels.filter(x => x !== l));
 
-    // Import/Export
+    // --- Import / Export ---
     const handleExportData = () => {
         const data = {
-            timestamp: new Date().toISOString(),
-            labels,
             libraryNpcs,
-            libraryMonsters
+            libraryMonsters,
+            libraryHeroes,
+            labels,
+            activeEntityIds,
+            saveSlots,
+            autoSave
         };
-        
-        const jsonString = JSON.stringify(data, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `pixel-rpg-library-${new Date().toISOString().slice(0,10)}.json`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pixel_rpg_data_${new Date().getTime()}.json`;
+        a.click();
         URL.revokeObjectURL(url);
     };
 
-    const handleImportData = (event: React.ChangeEvent<HTMLInputElement>) => {
-        const file = event.target.files?.[0];
+    const handleImportData = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
         if (!file) return;
 
         const reader = new FileReader();
-        reader.onload = (e) => {
+        reader.onload = async (event) => {
             try {
-                const content = e.target?.result as string;
-                const data = JSON.parse(content);
+                const raw = event.target?.result as string;
+                const data = JSON.parse(raw);
                 
-                let addedCount = 0;
-
-                // Merge Labels
-                if (Array.isArray(data.labels)) {
-                    setLabels(prev => Array.from(new Set([...prev, ...data.labels])));
+                setLoading(true);
+                
+                // Update States
+                if (data.libraryNpcs) setLibraryNpcs(data.libraryNpcs);
+                if (data.libraryMonsters) setLibraryMonsters(data.libraryMonsters);
+                if (data.libraryHeroes) setLibraryHeroes(data.libraryHeroes);
+                if (data.labels) setLabels(data.labels);
+                if (data.activeEntityIds) setActiveEntityIds(data.activeEntityIds);
+                if (data.autoSave !== undefined) setAutoSave(data.autoSave);
+                
+                // Handle Save Slots
+                if (data.saveSlots && Array.isArray(data.saveSlots)) {
+                    setSaveSlots(data.saveSlots);
+                    for (let i = 0; i < data.saveSlots.length; i++) {
+                        await storage.setItem(`pixel_rpg_save_${i + 1}`, data.saveSlots[i]);
+                    }
                 }
 
-                // Merge Library NPCs
-                if (Array.isArray(data.libraryNpcs) || Array.isArray(data.npcs)) {
-                    const source = data.libraryNpcs || data.npcs;
-                    setLibraryNpcs(prev => {
-                        const existingIds = new Set(prev.map(p => p.id));
-                        const newItems = source.filter((i: Entity) => !existingIds.has(i.id));
-                        addedCount += newItems.length;
-                        return [...prev, ...newItems];
-                    });
-                }
-
-                // Merge Library Monsters
-                if (Array.isArray(data.libraryMonsters) || Array.isArray(data.monsters)) {
-                    const source = data.libraryMonsters || data.monsters;
-                    setLibraryMonsters(prev => {
-                        const existingIds = new Set(prev.map(p => p.id));
-                        const newItems = source.filter((i: Entity) => !existingIds.has(i.id));
-                        addedCount += newItems.length;
-                        return [...prev, ...newItems];
-                    });
-                }
-
-                alert(`Import successful! Merged ${addedCount} new assets to Library.`);
-                setStorageError(null);
+                alert("Game Data Imported Successfully!");
             } catch (err) {
-                console.error(err);
-                alert("Failed to parse JSON file.");
+                console.error("Import failed", err);
+                alert("Failed to import data. File might be corrupted.");
+            } finally {
+                setLoading(false);
+                if (fileInputRef.current) fileInputRef.current.value = '';
             }
-            if (fileInputRef.current) fileInputRef.current.value = '';
         };
         reader.readAsText(file);
     };
+
+    // --- Render ---
+
+    if (loading) {
+        return (
+             <div className="min-h-screen bg-[#1a1a2e] flex flex-col items-center justify-center text-yellow-400 font-mono">
+                <div className="text-2xl animate-pulse mb-4">LOADING WORLD...</div>
+            </div>
+        );
+    }
+
+    // Sub-screen: Select Hero
+    if (gameState === GameState.SELECT_HERO) {
+        return (
+            <Gallery 
+                entities={libraryHeroes}
+                worldEntityIds={new Set()}
+                onDelete={() => {}} // Disable delete in selection mode
+                onToggleWorldStatus={() => {}}
+                onBack={() => setGameState(GameState.MENU)}
+                onSelect={handleSelectHero}
+                selectionMode={true}
+            />
+        );
+    }
+
+    // Sub-screen: Load Game
+    if (gameState === GameState.LOAD_GAME) {
+         return (
+            <div className="min-h-screen bg-[#1a1a2e] p-8 flex flex-col items-center animate-fade-in">
+                <h2 className="text-3xl text-yellow-400 pixel-font mb-8">Load Adventure</h2>
+                <div className="grid gap-6 w-full max-w-2xl">
+                    {saveSlots.map((slot, index) => (
+                        <Card key={index} className="relative">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h3 className="text-xl text-white font-bold mb-1">
+                                        Slot {index + 1} {index === 0 && <span className="text-xs text-yellow-500 ml-2">(AUTO)</span>}
+                                    </h3>
+                                    {slot ? (
+                                        <div className="text-sm text-slate-400">
+                                            <p>Hero: <span className="text-white">{slot.player.name}</span></p>
+                                            <p>Saved: {slot.timestamp}</p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-slate-600 italic">Empty Slot</p>
+                                    )}
+                                </div>
+                                {slot && (
+                                    <Button onClick={() => handleLoadGame(index + 1)} variant="primary">
+                                        LOAD
+                                    </Button>
+                                )}
+                            </div>
+                        </Card>
+                    ))}
+                </div>
+                <Button onClick={() => setGameState(GameState.MENU)} variant="secondary" className="mt-8">Back</Button>
+            </div>
+         );
+    }
 
     const renderMenu = () => (
         <div className="flex flex-col items-center justify-center h-full space-y-8 p-4 animate-fade-in relative">
             <div className="text-center space-y-2">
                 <h1 className="text-4xl md:text-6xl text-yellow-400 text-shadow pixel-font tracking-wider">PIXEL RPG MAKER</h1>
-                <p className="text-slate-400 font-mono">Powered by Google Gemini</p>
+                <p className="text-slate-400 font-mono">Create Assets. Play Adventure.</p>
             </div>
 
             <div className="flex flex-col gap-4 w-full max-w-md">
-                <Button onClick={() => setGameState(GameState.WORKSHOP)} className="text-xl py-4">
+                <Button onClick={() => setGameState(GameState.SELECT_HERO)} className="text-xl py-4 border-yellow-600 text-yellow-100">
+                    Start New Adventure
+                </Button>
+                <Button onClick={() => setGameState(GameState.LOAD_GAME)} className="text-xl py-4" variant="secondary">
+                    Load Adventure
+                </Button>
+                <div className="h-px bg-slate-700 my-2" />
+                <Button onClick={() => setGameState(GameState.WORKSHOP)} className="text-xl py-4" variant="primary">
                     Asset Workshop
                 </Button>
                 <Button onClick={() => setGameState(GameState.GALLERY)} className="text-xl py-4" variant="secondary">
                     Asset Gallery
                 </Button>
-                <Button onClick={() => setGameState(GameState.TOWN)} className="text-xl py-4" variant="success">
-                    Start Adventure
-                </Button>
-            </div>
-
-            <Card title="Hero Status" className="w-full max-w-md">
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                         <span className="text-slate-300">Name:</span>
-                         <input 
-                            value={player.name} 
-                            onChange={(e) => setPlayer({...player, name: e.target.value})}
-                            className="bg-slate-900 border-b border-slate-500 text-right w-32 focus:outline-none focus:border-yellow-400"
-                         />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <label className="text-sm text-slate-400">
-                            ATK ({player.stats.atk})
-                            <input 
-                                type="range" min="5" max="50" 
-                                value={player.stats.atk} 
-                                onChange={(e) => setPlayer({...player, stats: {...player.stats, atk: parseInt(e.target.value)}})}
-                                className="w-full accent-yellow-500"
-                            />
-                        </label>
-                        <label className="text-sm text-slate-400">
-                            DEF ({player.stats.def})
-                            <input 
-                                type="range" min="0" max="30" 
-                                value={player.stats.def} 
-                                onChange={(e) => setPlayer({...player, stats: {...player.stats, def: parseInt(e.target.value)}})}
-                                className="w-full accent-yellow-500"
-                            />
-                        </label>
-                        <label className="text-sm text-slate-400">
-                            Max HP ({player.stats.maxHp})
-                            <input 
-                                type="range" min="50" max="200" 
-                                value={player.stats.maxHp} 
-                                onChange={(e) => {
-                                    const val = parseInt(e.target.value);
-                                    setPlayer({...player, stats: {...player.stats, maxHp: val, hp: val}});
-                                }}
-                                className="w-full accent-red-500"
-                            />
-                        </label>
-                        <label className="text-sm text-slate-400">
-                            Max MP ({player.stats.maxMp})
-                            <input 
-                                type="range" min="0" max="100" 
-                                value={player.stats.maxMp} 
-                                onChange={(e) => {
-                                    const val = parseInt(e.target.value);
-                                    setPlayer({...player, stats: {...player.stats, maxMp: val, mp: val}});
-                                }}
-                                className="w-full accent-blue-500"
-                            />
-                        </label>
-                    </div>
-                </div>
-            </Card>
-
-            <div className="w-full max-w-md border-t border-slate-700 pt-4 mt-2">
-                <h3 className="text-slate-500 text-xs mb-2 text-center uppercase tracking-widest">Data Management</h3>
-                <div className="flex gap-4 justify-center">
-                    <Button onClick={handleExportData} variant="secondary" className="text-xs py-2 flex gap-2 items-center">
-                        <span>💾</span> Export JSON
+                
+                <div className="flex gap-2 pt-2">
+                    <Button onClick={handleExportData} variant="secondary" className="flex-1 text-sm">
+                        Export Data
                     </Button>
-                    <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="text-xs py-2 flex gap-2 items-center">
-                        <span>📂</span> Import JSON
+                    <Button onClick={() => fileInputRef.current?.click()} variant="secondary" className="flex-1 text-sm">
+                        Import Data
                     </Button>
                     <input 
                         type="file" 
-                        ref={fileInputRef} 
-                        onChange={handleImportData} 
-                        className="hidden" 
-                        accept=".json" 
+                        ref={fileInputRef}
+                        onChange={handleImportData}
+                        className="hidden"
+                        accept=".json"
                     />
                 </div>
             </div>
+
+            <div className="w-full max-w-md border-t border-slate-700 pt-4 mt-2">
+                <div className="flex justify-center items-center gap-2 mb-4">
+                     <label className="text-slate-400 text-sm flex items-center cursor-pointer select-none">
+                        <input 
+                            type="checkbox" 
+                            checked={autoSave} 
+                            onChange={e => setAutoSave(e.target.checked)}
+                            className="mr-2 w-4 h-4 accent-yellow-500"
+                        />
+                        Enable Auto-Save (Slot 1)
+                     </label>
+                </div>
+            </div>
             
-            <div className="text-xs text-slate-600 flex flex-col items-center gap-2">
-                <span>Library: {libraryNpcs.length} NPCs, {libraryMonsters.length} Monsters</span>
-                <span>World: {worldNpcs.length} NPCs, {worldMonsters.length} Monsters</span>
+            <div className="text-xs text-slate-600 flex flex-col items-center gap-1">
+                <span>Library: {libraryHeroes.length} Heroes, {libraryNpcs.length} NPCs, {libraryMonsters.length} Monsters</span>
+                <span>World Config: {activeEntityIds.length} Entities Active</span>
             </div>
         </div>
     );
-
-    if (loading) {
-        return (
-            <div className="min-h-screen bg-[#1a1a2e] flex flex-col items-center justify-center text-yellow-400 font-mono">
-                <div className="text-2xl animate-pulse mb-4">INITIALIZING DATABASE...</div>
-                <div className="w-64 h-4 bg-slate-800 border border-slate-600 rounded">
-                    <div className="h-full bg-yellow-500 animate-[width_2s_ease-in-out_infinite] w-1/2"></div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-[#1a1a2e] text-slate-200 selection:bg-yellow-500 selection:text-black overflow-hidden flex flex-col">
@@ -386,21 +404,25 @@ const App: React.FC = () => {
 
             {gameState === GameState.GALLERY && (
                 <Gallery 
-                    entities={[...libraryNpcs, ...libraryMonsters]}
-                    worldEntityIds={new Set([...worldNpcs, ...worldMonsters].map(e => e.id))}
+                    entities={[...libraryNpcs, ...libraryMonsters, ...libraryHeroes]}
+                    worldEntityIds={new Set(activeEntityIds)}
                     onDelete={handleDeleteFromLibrary}
                     onToggleWorldStatus={handleToggleWorldStatus}
                     onBack={() => setGameState(GameState.MENU)}
                 />
             )}
 
-            {(gameState === GameState.TOWN || gameState === GameState.FOREST || gameState === GameState.BATTLE) && (
+            {(gameState === GameState.TOWN || gameState === GameState.FOREST || gameState === GameState.BATTLE) && player && (
                 <Game 
                     player={player}
                     updatePlayer={setPlayer}
                     npcs={worldNpcs}
                     monsters={worldMonsters}
-                    onExit={() => setGameState(GameState.MENU)}
+                    onExit={() => {
+                        setGameState(GameState.MENU);
+                        if(autoSave) handleSaveGame(1); // Auto save on exit
+                    }}
+                    onSave={handleSaveGame}
                 />
             )}
         </div>
