@@ -26,6 +26,7 @@ export const Gallery: React.FC<GalleryProps> = ({
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [filter, setFilter] = useState<'ALL' | EntityType>(selectionMode ? EntityType.HERO : 'ALL');
     const [tagFilter, setTagFilter] = useState<string | null>(null);
+    const [modalData, setModalData] = useState<{open: boolean, prompt: string, name: string, tags?: string[]} | null>(null);
 
     // Extract all unique tags from current entities
     const allTags = useMemo(() => {
@@ -73,7 +74,46 @@ export const Gallery: React.FC<GalleryProps> = ({
     });
 
     return (
-        <div className="max-w-6xl mx-auto p-4 h-full flex flex-col animate-fade-in">
+        <div className="max-w-6xl mx-auto p-4 h-full flex flex-col animate-fade-in relative">
+            {modalData && modalData.open && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setModalData(null)}>
+                    <div className="bg-slate-800 border-4 border-slate-600 p-6 max-w-lg w-full shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                        <button 
+                            onClick={() => setModalData(null)}
+                            className="absolute top-2 right-2 text-slate-400 hover:text-white font-bold"
+                        >
+                            ✕
+                        </button>
+                        <h3 className="text-yellow-400 text-xl mb-4 pixel-font border-b border-slate-700 pb-2">
+                            Creation Data: {modalData.name}
+                        </h3>
+                        
+                        {modalData.tags && modalData.tags.length > 0 && (
+                            <div className="mb-4">
+                                <h4 className="text-slate-300 text-sm uppercase font-bold mb-1">Tags:</h4>
+                                <div className="flex flex-wrap gap-2">
+                                    {modalData.tags.map(tag => (
+                                        <span key={tag} className="text-xs bg-slate-700 text-yellow-200 px-2 py-1 rounded border border-slate-600">
+                                            {tag}
+                                        </span>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        <div>
+                            <h4 className="text-slate-300 text-sm uppercase font-bold mb-1">Original User Input:</h4>
+                            <div className="bg-slate-900 p-4 rounded border border-slate-700 text-white font-mono text-sm italic">
+                                "{modalData.prompt}"
+                            </div>
+                        </div>
+                        <div className="mt-6 flex justify-end">
+                            <Button onClick={() => setModalData(null)} variant="primary">Close</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-6 gap-4">
                 <h2 className="text-2xl md:text-3xl text-yellow-400 pixel-font">
                     {selectionMode ? "Select Your Hero" : "Asset Gallery"}
@@ -116,10 +156,10 @@ export const Gallery: React.FC<GalleryProps> = ({
                                 NPCs
                             </button>
                             <button 
-                                onClick={() => setFilter(EntityType.MONSTER)}
-                                className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.MONSTER ? 'text-red-400 border-b-2 border-red-400' : 'text-slate-500 hover:text-slate-300'}`}
+                                onClick={() => setFilter(EntityType.ENEMY)}
+                                className={`px-4 py-1 font-bold transition-colors ${filter === EntityType.ENEMY ? 'text-red-400 border-b-2 border-red-400' : 'text-slate-500 hover:text-slate-300'}`}
                             >
-                                MONSTERS
+                                ENEMIES
                             </button>
                         </>
                     )}
@@ -177,21 +217,43 @@ export const Gallery: React.FC<GalleryProps> = ({
                                     ${selectionMode ? 'hover:border-yellow-500 hover:shadow-[0_0_15px_rgba(234,179,8,0.5)]' : ''}
                                 `}
                             >
-                                {/* Hover Overlay Info */}
-                                <div className="absolute inset-0 bg-slate-900/95 p-4 flex flex-col justify-center items-center text-center opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-30">
-                                    <h5 className="text-yellow-400 text-sm font-bold mb-2 pixel-font">{entity.name}</h5>
-                                    <p className="text-xs text-slate-300 mb-3 line-clamp-4 italic leading-tight">"{entity.description}"</p>
+                                {/* Hover Overlay Info - Enhanced with Backdrop Blur and Clear Stats */}
+                                <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-sm p-3 flex flex-col justify-center items-center text-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
+                                    <div className="flex items-center justify-between w-full border-b border-slate-700 pb-1 mb-1 gap-2">
+                                        <h5 className="text-yellow-400 text-sm font-bold pixel-font truncate flex-1 text-left" title={entity.name}>{entity.name}</h5>
+                                        {entity.originalPrompt && (
+                                            <button 
+                                                onClick={(e) => { 
+                                                    e.stopPropagation(); 
+                                                    setModalData({ 
+                                                        open: true, 
+                                                        prompt: entity.originalPrompt!, 
+                                                        name: entity.name,
+                                                        tags: entity.tags 
+                                                    });
+                                                }}
+                                                className="text-xs bg-slate-700 hover:bg-blue-600 text-white w-5 h-5 rounded-full flex items-center justify-center transition-colors border border-slate-500"
+                                                title="View Prompt & Tags"
+                                            >
+                                                ?
+                                            </button>
+                                        )}
+                                    </div>
                                     
-                                    <div className="w-full bg-slate-800 p-2 rounded text-xs border border-slate-600 grid grid-cols-2 gap-x-4 gap-y-1">
-                                         <div className="flex justify-between"><span className="text-red-400 font-bold">HP</span> <span>{entity.stats.maxHp}</span></div>
-                                         <div className="flex justify-between"><span className="text-blue-400 font-bold">MP</span> <span>{entity.stats.maxMp}</span></div>
-                                         <div className="flex justify-between"><span className="text-orange-400 font-bold">ATK</span> <span>{entity.stats.atk}</span></div>
-                                         <div className="flex justify-between"><span className="text-green-400 font-bold">DEF</span> <span>{entity.stats.def}</span></div>
+                                    <div className="flex-1 flex items-center">
+                                        <p className="text-[10px] text-slate-300 line-clamp-3 italic leading-tight">"{entity.description}"</p>
+                                    </div>
+                                    
+                                    <div className="w-full bg-slate-900/50 p-1 rounded text-xs border border-slate-700 grid grid-cols-2 gap-px">
+                                         <div className="bg-slate-800 p-1 flex justify-between items-center"><span className="text-red-400 font-bold text-[10px]">HP</span> <span className="text-white">{entity.stats.maxHp}</span></div>
+                                         <div className="bg-slate-800 p-1 flex justify-between items-center"><span className="text-blue-400 font-bold text-[10px]">MP</span> <span className="text-white">{entity.stats.maxMp}</span></div>
+                                         <div className="bg-slate-800 p-1 flex justify-between items-center"><span className="text-orange-400 font-bold text-[10px]">ATK</span> <span className="text-white">{entity.stats.atk}</span></div>
+                                         <div className="bg-slate-800 p-1 flex justify-between items-center"><span className="text-green-400 font-bold text-[10px]">DEF</span> <span className="text-white">{entity.stats.def}</span></div>
                                     </div>
                                     
                                     {entity.tags && entity.tags.length > 0 && (
-                                         <div className="mt-2 flex flex-wrap justify-center gap-1">
-                                             {entity.tags.slice(0, 3).map(t => <span key={t} className="text-[8px] bg-slate-700 px-1 rounded text-slate-400">{t}</span>)}
+                                         <div className="mt-2 flex flex-wrap justify-center gap-1 w-full overflow-hidden h-4">
+                                             {entity.tags.slice(0, 2).map(t => <span key={t} className="text-[8px] bg-slate-700 px-1 rounded text-slate-400 uppercase">{t}</span>)}
                                          </div>
                                     )}
                                 </div>
@@ -218,7 +280,7 @@ export const Gallery: React.FC<GalleryProps> = ({
                                     <div className="absolute bottom-0 left-0 right-0 bg-black/60 p-1">
                                         <div className={`text-[10px] font-bold text-center tracking-wider 
                                             ${entity.type === EntityType.NPC ? 'text-blue-300' : 
-                                              entity.type === EntityType.MONSTER ? 'text-red-300' : 'text-yellow-300'}`}>
+                                              entity.type === EntityType.ENEMY ? 'text-red-300' : 'text-yellow-300'}`}>
                                             {entity.type}
                                         </div>
                                     </div>

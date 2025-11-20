@@ -1,7 +1,7 @@
 
 export enum EntityType {
     NPC = 'NPC',
-    MONSTER = 'MONSTER',
+    ENEMY = 'ENEMY',
     HERO = 'HERO'
 }
 
@@ -35,6 +35,7 @@ export interface Entity {
     stats: Stats;
     dialoguePrompt?: string; // For NPCs
     tags: string[];
+    originalPrompt?: string; // The user input prompt used to generate this entity
 }
 
 export interface Player {
@@ -53,6 +54,6 @@ export interface SaveData {
     timestamp: string;
     player: Player;
     worldNpcs: Entity[];
-    worldMonsters: Entity[];
+    worldEnemies: Entity[];
     location: string | null;
 }

@@ -16,7 +16,7 @@ const App: React.FC = () => {
     
     // Global Library State
     const [libraryNpcs, setLibraryNpcs] = useState<Entity[]>([]);
-    const [libraryMonsters, setLibraryMonsters] = useState<Entity[]>([]);
+    const [libraryEnemies, setLibraryEnemies] = useState<Entity[]>([]);
     const [libraryHeroes, setLibraryHeroes] = useState<Entity[]>([]);
     const [labels, setLabels] = useState<string[]>([]);
 
@@ -25,7 +25,7 @@ const App: React.FC = () => {
 
     // Active Game World State (Runtime)
     const [worldNpcs, setWorldNpcs] = useState<Entity[]>([]);
-    const [worldMonsters, setWorldMonsters] = useState<Entity[]>([]);
+    const [worldEnemies, setWorldEnemies] = useState<Entity[]>([]);
 
     // Settings & Saves
     const [autoSave, setAutoSave] = useState(true);
@@ -36,16 +36,22 @@ const App: React.FC = () => {
         const initializeApp = async () => {
             try {
                 // Load Library
-                const [dbLibNpcs, dbLibMonsters, dbLibHeroes, dbLabels, dbActiveIds] = await Promise.all([
+                const [dbLibNpcs, dbLibEnemies, dbLibHeroes, dbLabels, dbActiveIds] = await Promise.all([
                     storage.getItem<Entity[]>('pixel_rpg_library_npcs'),
-                    storage.getItem<Entity[]>('pixel_rpg_library_monsters'),
+                    storage.getItem<Entity[]>('pixel_rpg_library_enemies'),
                     storage.getItem<Entity[]>('pixel_rpg_library_heroes'),
                     storage.getItem<string[]>('pixel_rpg_labels'),
                     storage.getItem<string[]>('pixel_rpg_active_ids')
                 ]);
 
+                // Legacy Migration: Check for 'monsters' if 'enemies' not found
+                let legacyEnemies: Entity[] | null = null;
+                if (!dbLibEnemies) {
+                     legacyEnemies = await storage.getItem<Entity[]>('pixel_rpg_library_monsters');
+                }
+
                 setLibraryNpcs(dbLibNpcs || []);
-                setLibraryMonsters(dbLibMonsters || []);
+                setLibraryEnemies(dbLibEnemies || legacyEnemies || []);
                 setLibraryHeroes(dbLibHeroes || []);
                 setLabels(dbLabels || ['Fantasy', 'Sci-Fi', 'Dark', 'Boss']);
                 setActiveEntityIds(dbActiveIds || []);
@@ -53,8 +59,17 @@ const App: React.FC = () => {
                 // Load Save Metadata (Preview of slots)
                 const slots: (SaveData | null)[] = [];
                 for (let i = 1; i <= 3; i++) {
-                    const data = await storage.getItem<SaveData>(`pixel_rpg_save_${i}`);
-                    slots.push(data);
+                    const data = await storage.getItem<any>(`pixel_rpg_save_${i}`);
+                    if (data) {
+                         // Backward compatibility for Save Data
+                         if (data.worldMonsters && !data.worldEnemies) {
+                             data.worldEnemies = data.worldMonsters;
+                             delete data.worldMonsters;
+                         }
+                         slots.push(data as SaveData);
+                    } else {
+                        slots.push(null);
+                    }
                 }
                 setSaveSlots(slots);
 
@@ -84,7 +99,7 @@ const App: React.FC = () => {
     };
 
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_npcs', libraryNpcs); }, [libraryNpcs, loading]);
-    useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_monsters', libraryMonsters); }, [libraryMonsters, loading]);
+    useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_enemies', libraryEnemies); }, [libraryEnemies, loading]);
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_library_heroes', libraryHeroes); }, [libraryHeroes, loading]);
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_labels', labels); }, [labels, loading]);
     useEffect(() => { if(!loading) saveToDB('pixel_rpg_autosave', autoSave); }, [autoSave, loading]);
@@ -93,20 +108,18 @@ const App: React.FC = () => {
     // --- Workshop Handlers ---
     const handleAddToLibrary = (entity: Entity) => {
         if (entity.type === EntityType.NPC) setLibraryNpcs(prev => [...prev, entity]);
-        else if (entity.type === EntityType.MONSTER) setLibraryMonsters(prev => [...prev, entity]);
+        else if (entity.type === EntityType.ENEMY) setLibraryEnemies(prev => [...prev, entity]);
         else if (entity.type === EntityType.HERO) setLibraryHeroes(prev => [...prev, entity]);
     };
 
     const handleAddToWorld = (entity: Entity) => {
         // Add to Library first if not exists (implicitly handled by Save to Gallery, but here we just enable it)
-        // Logic: If user clicks "Add to World" in Workshop, we assume they want it in the encounter table.
-        // We also ensure it's in the library so it persists.
         handleAddToLibrary(entity);
         
         if (entity.type !== EntityType.HERO) {
             setActiveEntityIds(prev => prev.includes(entity.id) ? prev : [...prev, entity.id]);
         } else {
-            alert("Heroes cannot be added as NPCs/Monsters. Save to Gallery and select 'Start New Adventure'!");
+            alert("Heroes cannot be added as NPCs/Enemies. Save to Gallery and select 'Start New Adventure'!");
         }
     };
 
@@ -114,7 +127,7 @@ const App: React.FC = () => {
     const handleDeleteFromLibrary = (ids: string[]) => {
         const filterFn = (e: Entity) => !ids.includes(e.id);
         setLibraryNpcs(prev => prev.filter(filterFn));
-        setLibraryMonsters(prev => prev.filter(filterFn));
+        setLibraryEnemies(prev => prev.filter(filterFn));
         setLibraryHeroes(prev => prev.filter(filterFn));
         
         // Also remove from active configuration
@@ -150,10 +163,10 @@ const App: React.FC = () => {
         
         // Initialize World from Configuration (activeEntityIds)
         const initialNpcs = libraryNpcs.filter(e => activeEntityIds.includes(e.id));
-        const initialMonsters = libraryMonsters.filter(e => activeEntityIds.includes(e.id));
+        const initialEnemies = libraryEnemies.filter(e => activeEntityIds.includes(e.id));
         
         setWorldNpcs(initialNpcs);
-        setWorldMonsters(initialMonsters);
+        setWorldEnemies(initialEnemies);
         setGameState(GameState.TOWN);
     };
 
@@ -163,7 +176,7 @@ const App: React.FC = () => {
             timestamp: new Date().toLocaleString(),
             player,
             worldNpcs,
-            worldMonsters,
+            worldEnemies,
             location: 'TOWN' 
         };
         await storage.setItem(`pixel_rpg_save_${slotId}`, data);
@@ -184,7 +197,7 @@ const App: React.FC = () => {
 
         setPlayer(data.player);
         setWorldNpcs(data.worldNpcs);
-        setWorldMonsters(data.worldMonsters);
+        setWorldEnemies(data.worldEnemies);
         setGameState(GameState.TOWN); 
     };
 
@@ -204,7 +217,7 @@ const App: React.FC = () => {
     const handleExportData = () => {
         const data = {
             libraryNpcs,
-            libraryMonsters,
+            libraryEnemies,
             libraryHeroes,
             labels,
             activeEntityIds,
@@ -234,7 +247,10 @@ const App: React.FC = () => {
                 
                 // Update States
                 if (data.libraryNpcs) setLibraryNpcs(data.libraryNpcs);
-                if (data.libraryMonsters) setLibraryMonsters(data.libraryMonsters);
+                if (data.libraryEnemies) setLibraryEnemies(data.libraryEnemies);
+                // Legacy check during import
+                if (!data.libraryEnemies && data.libraryMonsters) setLibraryEnemies(data.libraryMonsters);
+
                 if (data.libraryHeroes) setLibraryHeroes(data.libraryHeroes);
                 if (data.labels) setLabels(data.labels);
                 if (data.activeEntityIds) setActiveEntityIds(data.activeEntityIds);
@@ -242,9 +258,16 @@ const App: React.FC = () => {
                 
                 // Handle Save Slots
                 if (data.saveSlots && Array.isArray(data.saveSlots)) {
-                    setSaveSlots(data.saveSlots);
-                    for (let i = 0; i < data.saveSlots.length; i++) {
-                        await storage.setItem(`pixel_rpg_save_${i + 1}`, data.saveSlots[i]);
+                    // Normalize Save Data
+                    const normalizedSlots = data.saveSlots.map((slot: any) => {
+                        if (slot && slot.worldMonsters && !slot.worldEnemies) {
+                            slot.worldEnemies = slot.worldMonsters;
+                        }
+                        return slot;
+                    });
+                    setSaveSlots(normalizedSlots);
+                    for (let i = 0; i < normalizedSlots.length; i++) {
+                        await storage.setItem(`pixel_rpg_save_${i + 1}`, normalizedSlots[i]);
                     }
                 }
 
@@ -375,7 +398,7 @@ const App: React.FC = () => {
             </div>
             
             <div className="text-xs text-slate-600 flex flex-col items-center gap-1">
-                <span>Library: {libraryHeroes.length} Heroes, {libraryNpcs.length} NPCs, {libraryMonsters.length} Monsters</span>
+                <span>Library: {libraryHeroes.length} Heroes, {libraryNpcs.length} NPCs, {libraryEnemies.length} Enemies</span>
                 <span>World Config: {activeEntityIds.length} Entities Active</span>
             </div>
         </div>
@@ -404,7 +427,7 @@ const App: React.FC = () => {
 
             {gameState === GameState.GALLERY && (
                 <Gallery 
-                    entities={[...libraryNpcs, ...libraryMonsters, ...libraryHeroes]}
+                    entities={[...libraryNpcs, ...libraryEnemies, ...libraryHeroes]}
                     worldEntityIds={new Set(activeEntityIds)}
                     onDelete={handleDeleteFromLibrary}
                     onToggleWorldStatus={handleToggleWorldStatus}
@@ -417,7 +440,7 @@ const App: React.FC = () => {
                     player={player}
                     updatePlayer={setPlayer}
                     npcs={worldNpcs}
-                    monsters={worldMonsters}
+                    enemies={worldEnemies}
                     onExit={() => {
                         setGameState(GameState.MENU);
                         if(autoSave) handleSaveGame(1); // Auto save on exit

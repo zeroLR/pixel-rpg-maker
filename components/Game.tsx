@@ -8,12 +8,12 @@ interface GameProps {
     player: Player;
     updatePlayer: (p: Player) => void;
     npcs: Entity[];
-    monsters: Entity[];
+    enemies: Entity[];
     onExit: () => void;
     onSave: (slot: number) => void;
 }
 
-export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters, onExit, onSave }) => {
+export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, enemies, onExit, onSave }) => {
     const [location, setLocation] = useState<'TOWN' | 'FOREST' | null>(null);
     const [currentEntity, setCurrentEntity] = useState<Entity | null>(null);
     const [logs, setLogs] = useState<string[]>(["Welcome to the world of Pixel RPG."]);
@@ -71,15 +71,15 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
                     addLog("The town is empty. Go to Workshop to create NPCs!");
                 }
             } else {
-                if (monsters.length > 0) {
-                    const monster = monsters[Math.floor(Math.random() * monsters.length)];
-                    setCurrentEntity(monster);
-                    setEnemyHp(monster.stats.maxHp);
-                    addLog(`A wild ${monster.name} appeared!`);
+                if (enemies.length > 0) {
+                    const enemy = enemies[Math.floor(Math.random() * enemies.length)];
+                    setCurrentEntity(enemy);
+                    setEnemyHp(enemy.stats.maxHp);
+                    addLog(`A wild ${enemy.name} appeared!`);
                     setIsBattling(true);
                     setBattleTurn('PLAYER');
                 } else {
-                    addLog("The forest is silent. Go to Workshop to create Monsters!");
+                    addLog("The forest is silent. Go to Workshop to create Enemies!");
                 }
             }
         }, 800);
@@ -237,7 +237,7 @@ export const Game: React.FC<GameProps> = ({ player, updatePlayer, npcs, monsters
                         <div className="absolute inset-0 bg-green-900/20 group-hover:bg-green-900/40 transition-all"></div>
                         <span className="text-4xl mb-2">🌲</span>
                         <h3 className="text-2xl text-green-300 pixel-font z-10">Forest</h3>
-                        <p className="text-slate-400 z-10">Battle Monsters, Gain Glory</p>
+                        <p className="text-slate-400 z-10">Battle Enemies, Gain Glory</p>
                     </button>
                 </div>
                 

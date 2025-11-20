@@ -25,7 +25,7 @@ export const Workshop: React.FC<WorkshopProps> = ({
     const [loading, setLoading] = useState(false);
     const [generatedEntity, setGeneratedEntity] = useState<Entity | null>(null);
     const [error, setError] = useState<string | null>(null);
-    const [type, setType] = useState<EntityType>(EntityType.MONSTER);
+    const [type, setType] = useState<EntityType>(EntityType.ENEMY);
     const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
     const [newLabelInput, setNewLabelInput] = useState('');
     const [message, setMessage] = useState<string | null>(null);
@@ -115,10 +115,10 @@ export const Workshop: React.FC<WorkshopProps> = ({
                             <label className="block text-sm mb-2 text-slate-300">Entity Type</label>
                             <div className="flex gap-2">
                                 <button 
-                                    onClick={() => setType(EntityType.MONSTER)}
-                                    className={`flex-1 p-2 border-2 text-center text-xs md:text-sm transition-colors ${type === EntityType.MONSTER ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-slate-600 text-slate-500'}`}
+                                    onClick={() => setType(EntityType.ENEMY)}
+                                    className={`flex-1 p-2 border-2 text-center text-xs md:text-sm transition-colors ${type === EntityType.ENEMY ? 'border-red-500 bg-red-500/20 text-red-300' : 'border-slate-600 text-slate-500'}`}
                                 >
-                                    MONSTER
+                                    ENEMY
                                 </button>
                                 <button 
                                     onClick={() => setType(EntityType.NPC)}

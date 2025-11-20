@@ -121,7 +121,8 @@ export const generatePixelAsset = async (prompt: string, type: EntityType, tags:
             def: data.stats?.def || 0,
         },
         dialoguePrompt: data.dialoguePrompt,
-        tags: tags
+        tags: tags,
+        originalPrompt: prompt
     };
 };
 
